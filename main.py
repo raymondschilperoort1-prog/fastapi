@@ -3,6 +3,10 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
+
+# -----------------------------
+# Models
+# -----------------------------
 class BalanceSheet(BaseModel):
     fixed_assets: float
     current_assets: float
@@ -10,13 +14,11 @@ class BalanceSheet(BaseModel):
     long_term_liabilities: float
     short_term_liabilities: float
 
+
 class ProfitLoss(BaseModel):
     revenue: float
-    cost_of_sales: float
-    operating_expenses: float
-    personnel_costs: float
-    financial_result: float
     net_profit: float
+
 
 class AnnualReportRequest(BaseModel):
     company_name: str
@@ -25,11 +27,17 @@ class AnnualReportRequest(BaseModel):
     profit_and_loss: ProfitLoss
 
 
+# -----------------------------
+# Home
+# -----------------------------
 @app.get("/")
 def home():
     return {"status": "Accountant API draait ✅"}
 
 
+# -----------------------------
+# Generate report
+# -----------------------------
 @app.post("/generate-annual-report")
 def generate_report(data: AnnualReportRequest):
 
@@ -49,19 +57,13 @@ WINST- EN VERLIESREKENING
 Omzet: {data.profit_and_loss.revenue:.2f}
 Nettoresultaat: {data.profit_and_loss.net_profit:.2f}
 """
-    return {"document_text": report_text}
 
-@app.post("/generate-annual-report")
-def generate_report(data: AnnualReportRequest):
-    report_text = f"""
-JAARREKENING {data.company_name}
-Boekjaar: {data.fiscal_year}
-...
-"""
     return {"document_text": report_text}
 
 
-# ✅ Privacy endpoint staat volledig buiten de functie
+# -----------------------------
+# Privacy (Actions requirement)
+# -----------------------------
 @app.get("/privacy")
 def privacy():
     return {
