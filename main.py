@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-app = FastAPI()
+app = FastAPI(
+    title="Accountant API",
+    version="1.0.2"
+)
 
 
 # -----------------------------
