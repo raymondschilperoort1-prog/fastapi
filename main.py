@@ -4,6 +4,10 @@ from fastapi.responses import FileResponse
 import os
 from fpdf import FPDF
 
+@app.get("/version")
+def version():
+    return {"version": "PDF-TEST-123"}
+
 app = FastAPI(
     title="Accountant Jaarstukken API",
     version="2.0.0"
