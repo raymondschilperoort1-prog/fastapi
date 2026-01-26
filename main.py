@@ -50,7 +50,18 @@ Omzet: {data.profit_and_loss.revenue:.2f}
 Nettoresultaat: {data.profit_and_loss.net_profit:.2f}
 """
     return {"document_text": report_text}
-# ✅ Privacy endpoint moet hier staan (helemaal buiten)
+
+@app.post("/generate-annual-report")
+def generate_report(data: AnnualReportRequest):
+    report_text = f"""
+JAARREKENING {data.company_name}
+Boekjaar: {data.fiscal_year}
+...
+"""
+    return {"document_text": report_text}
+
+
+# ✅ Privacy endpoint staat volledig buiten de functie
 @app.get("/privacy")
 def privacy():
     return {
