@@ -50,3 +50,8 @@ Omzet: {data.profit_and_loss.revenue:.2f}
 Nettoresultaat: {data.profit_and_loss.net_profit:.2f}
 """
     return {"document_text": report_text}
+@app.get("/privacy")
+def privacy():
+    return {
+        "policy": "Deze API verwerkt alleen boekhoudgegevens voor rapportage en slaat niets permanent op."
+    }
