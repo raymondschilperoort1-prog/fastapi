@@ -1,7 +1,7 @@
 fastapi==0.110.0
 hypercorn==0.16.0
 fpdf==1.7.2
-pydantic
-pandas
-openpyxl
+pydantic==2.6.4
 
+pandas==2.2.2
+openpyxl==3.1.2
