@@ -10,8 +10,8 @@ import io
 
 app = FastAPI(
     title="Strikte Boekhoud Partner API",
-    version="1.0.0",
-    description="Genereert formele jaarrekeningen + PDF + bankmutatie upload + CSV jaarrekening generator."
+    version="3.0.0",
+    description="Genereert formele jaarrekeningen (Accountant Style) + PDF + bank upload + CSV input."
 )
 
 # =====================================================
@@ -24,7 +24,7 @@ def home():
 
 @app.get("/version")
 def version():
-    return {"version": "Accountant API v1.0 ✅ Live"}
+    return {"version": "Accountant API v3.0 ✅ Accountant Style Live"}
 
 @app.get("/privacy")
 def privacy():
@@ -36,7 +36,7 @@ def privacy():
     }
 
 # =====================================================
-# ✅ DATA MODELS (MATCH GPT ACTION SCHEMA)
+# ✅ DATA MODELS
 # =====================================================
 
 class BalanceSheet(BaseModel):
@@ -64,31 +64,87 @@ class AnnualReportRequest(BaseModel):
 
 
 # =====================================================
-# ✅ FORMAL YEAR REPORT (TEXT)
+# ✅ ACCOUNTANT STYLE YEAR REPORT BUILDER v3.0
+# (Zoals officiële jaarrekening layout)
 # =====================================================
 
-@app.post(
-    "/generate-annual-report",
-    operation_id="generateAnnualReport"
-)
-def generate_report(data: AnnualReportRequest):
+def build_accountant_report(data: AnnualReportRequest):
 
-    report_text = f"""
-------------------------------------------------------------
-                     JAARREKENING
-------------------------------------------------------------
+    principles = f"""
+GRONDSLAGEN VOOR WAARDERING EN RESULTAATBEPALING
 
-Onderneming:       {data.company_name}
-Boekjaar:          {data.fiscal_year}
+Algemeen
+De jaarrekening is opgesteld overeenkomstig de Richtlijnen voor de Jaarverslaggeving
+voor microrechtspersonen.
+
+Waardering activa en passiva
+Activa en passiva worden gewaardeerd tegen verkrijgingsprijs.
+
+Omzetverantwoording
+Opbrengsten worden verantwoord in het jaar waarin de prestaties zijn geleverd.
+
+Afschrijvingen
+Materiële vaste activa worden lineair afgeschreven op basis van economische levensduur.
+"""
+
+    balance_notes = f"""
+TOELICHTING OP DE BALANS
+
+Eigen Vermogen
+Het eigen vermogen per balansdatum bedraagt € {data.balance_sheet.equity:,.2f}.
+
+Schulden
+Langlopende schulden: € {data.balance_sheet.long_term_liabilities:,.2f}
+Kortlopende schulden: € {data.balance_sheet.short_term_liabilities:,.2f}
+"""
+
+    other_notes = f"""
+OVERIGE TOELICHTINGEN
+
+Gemiddeld aantal werknemers
+Gedurende het boekjaar waren er geen werknemers in dienst.
+
+Gebeurtenissen na balansdatum
+Er hebben zich geen materiële gebeurtenissen voorgedaan na balansdatum.
+"""
+
+    signing = f"""
+ONDERTEKENING
+
+Opgemaakt te ___________________
+
+Datum: _______________________
+
+Directie: _____________________
+"""
+
+    return f"""
+============================================================
+                    JAARREKENING
+============================================================
+
+Onderneming: {data.company_name}
+Boekjaar:    {data.fiscal_year}
 
 ============================================================
-BALANS PER 31-12-{data.fiscal_year}
+1. SAMENSTELLINGSVERKLARING
+============================================================
+
+De jaarrekening van {data.company_name} is samengesteld op basis van
+de door de directie verstrekte gegevens.
+
+Er is geen accountantscontrole toegepast.
+
+============================================================
+2. BALANS PER 31-12-{data.fiscal_year}
 ============================================================
 
 ACTIVA
 ------------------------------------------------------------
 Vaste activa:              € {data.balance_sheet.fixed_assets:,.2f}
 Vlottende activa:          € {data.balance_sheet.current_assets:,.2f}
+
+Totaal activa:             € {(data.balance_sheet.fixed_assets + data.balance_sheet.current_assets):,.2f}
 
 PASSIVA
 ------------------------------------------------------------
@@ -97,12 +153,16 @@ Eigen vermogen:            € {data.balance_sheet.equity:,.2f}
 Langlopende schulden:      € {data.balance_sheet.long_term_liabilities:,.2f}
 Kortlopende schulden:      € {data.balance_sheet.short_term_liabilities:,.2f}
 
+Totaal passiva:            € {(data.balance_sheet.equity + data.balance_sheet.long_term_liabilities + data.balance_sheet.short_term_liabilities):,.2f}
+
 ============================================================
-WINST- EN VERLIESREKENING
+3. WINST- EN VERLIESREKENING
 ============================================================
 
 Omzet:                     € {data.profit_and_loss.revenue:,.2f}
 Kostprijs omzet:           € {data.profit_and_loss.cost_of_sales:,.2f}
+
+Brutowinst:                € {(data.profit_and_loss.revenue - data.profit_and_loss.cost_of_sales):,.2f}
 
 Operationele kosten:       € {data.profit_and_loss.operating_expenses:,.2f}
 Personeelskosten:          € {data.profit_and_loss.personnel_costs:,.2f}
@@ -113,29 +173,71 @@ Financieel resultaat:      € {data.profit_and_loss.financial_result:,.2f}
 Nettoresultaat:            € {data.profit_and_loss.net_profit:,.2f}
 ------------------------------------------------------------
 
-Document opgesteld voor interne rapportage en accountantscontrole.
-    """
+============================================================
+4. GRONDSLAGEN
+============================================================
+{principles}
+
+============================================================
+5. TOELICHTING BALANSPOSTEN
+============================================================
+{balance_notes}
+
+============================================================
+6. OVERIGE GEGEVENS
+============================================================
+{other_notes}
+
+============================================================
+7. ONDERTEKENING
+============================================================
+{signing}
+"""
+
+
+# =====================================================
+# ✅ FORMAL YEAR REPORT ENDPOINT (TEXT)
+# =====================================================
+
+@app.post(
+    "/generate-annual-report",
+    operation_id="generateAnnualReport"
+)
+def generate_report(data: AnnualReportRequest):
+
+    report_text = build_accountant_report(data)
 
     return {"document_text": report_text.strip()}
 
 
 # =====================================================
-# ✅ PDF EXPORT ENDPOINT (SAFE FOR RAILWAY)
+# ✅ PDF EXPORT ENDPOINT v3.0 (ACCOUNTANT STYLE)
 # =====================================================
 
 @app.post("/generate-annual-report-pdf")
 def generate_report_pdf(data: AnnualReportRequest):
 
-    result = generate_report(data)
-    text = result["document_text"]
+    text = build_accountant_report(data)
 
-    # ✅ Railway-safe filesystem location
     filename = f"/tmp/jaarrekening_{uuid.uuid4().hex}.pdf"
 
     pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Helvetica", size=11)
+    pdf.set_auto_page_break(auto=True, margin=15)
 
+    # ✅ Cover Page Title
+    pdf.add_page()
+    pdf.set_font("Helvetica", style="B", size=18)
+    pdf.cell(0, 15, "JAARREKENING", ln=True, align="C")
+
+    pdf.ln(8)
+    pdf.set_font("Helvetica", size=12)
+    pdf.cell(0, 10, data.company_name, ln=True, align="C")
+    pdf.cell(0, 10, f"Boekjaar {data.fiscal_year}", ln=True, align="C")
+
+    pdf.ln(15)
+    pdf.set_font("Helvetica", size=10)
+
+    # ✅ Full report body
     for line in text.split("\n"):
         pdf.multi_cell(0, 7, line)
 
@@ -144,7 +246,7 @@ def generate_report_pdf(data: AnnualReportRequest):
     return FileResponse(
         filename,
         media_type="application/pdf",
-        filename="jaarrekening.pdf"
+        filename="jaarrekening_accountantstijl.pdf"
     )
 
 
@@ -192,7 +294,6 @@ async def upload_bank_file(file: UploadFile = File(...)):
 
 # =====================================================
 # ✅ CSV → DIRECT YEAR REPORT GENERATOR
-# Upload 1 CSV → return jaarrekening tekst
 # =====================================================
 
 @app.post(
@@ -200,15 +301,6 @@ async def upload_bank_file(file: UploadFile = File(...)):
     operation_id="generateAnnualReportFromCSV"
 )
 async def generate_from_csv(file: UploadFile = File(...)):
-    """
-    CSV bestand met kolommen:
-
-    company_name,fiscal_year,
-    fixed_assets,current_assets,equity,
-    long_term_liabilities,short_term_liabilities,
-    revenue,cost_of_sales,operating_expenses,
-    personnel_costs,financial_result,net_profit
-    """
 
     contents = await file.read()
     text_stream = io.StringIO(contents.decode("utf-8"))
@@ -221,7 +313,6 @@ async def generate_from_csv(file: UploadFile = File(...)):
 
     row = rows[0]
 
-    # ✅ Convert CSV row into request model
     data = AnnualReportRequest(
         company_name=row["company_name"],
         fiscal_year=row["fiscal_year"],
@@ -242,5 +333,4 @@ async def generate_from_csv(file: UploadFile = File(...)):
         ),
     )
 
-    # ✅ Generate report using the same function
     return generate_report(data)
