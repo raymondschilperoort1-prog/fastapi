@@ -2,35 +2,27 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fpdf import FPDF
-import uuid
 import pandas as pd
+import uuid
 import os
 
 app = FastAPI(
     title="Strikte Boekhoud Partner API",
     version="1.0.0",
-    description="Genereert formele jaarstukken zoals accountant-output.deel 2"
+    description="Genereert formele jaarrekeningen + PDF + bankmutatie upload."
 )
 
 # =====================================================
-# ✅ HOME
+# ✅ BASIC ENDPOINTS
 # =====================================================
 
 @app.get("/")
 def home():
     return {"status": "Accountant API draait ✅"}
 
-# =====================================================
-# ✅ VERSION
-# =====================================================
-
 @app.get("/version")
 def version():
     return {"version": "Accountant API v1.0 ✅ Live"}
-
-# =====================================================
-# ✅ PRIVACY (Actions requirement)
-# =====================================================
 
 @app.get("/privacy")
 def privacy():
@@ -42,7 +34,7 @@ def privacy():
     }
 
 # =====================================================
-# ✅ DATA MODELS
+# ✅ DATA MODELS (MATCH GPT ACTION SCHEMA)
 # =====================================================
 
 class BalanceSheet(BaseModel):
@@ -70,7 +62,7 @@ class AnnualReportRequest(BaseModel):
 
 
 # =====================================================
-# ✅ FORMAL YEAR REPORT (TEXT)
+# ✅ FORMAL YEAR REPORT (TEXT) — BANK/ACCOUNTANT STYLE
 # =====================================================
 
 @app.post(
@@ -79,44 +71,54 @@ class AnnualReportRequest(BaseModel):
 )
 def generate_report(data: AnnualReportRequest):
 
-
     report_text = f"""
-JAARREKENING {data.fiscal_year}
-{data.company_name}
+------------------------------------------------------------
+                     JAARREKENING
+------------------------------------------------------------
 
-1. SAMENSTELLING EN VERANTWOORDING
-Deze jaarrekening is samengesteld op basis van door de ondernemer aangeleverde gegevens.
+Onderneming:       {data.company_name}
+Boekjaar:          {data.fiscal_year}
 
-2. WINST- EN VERLIESREKENING
+============================================================
+BALANS PER 31-12-{data.fiscal_year}
+============================================================
 
-Opbrengsten
-Totaal omzet: € {data.profit_and_loss.revenue:,.2f}
+ACTIVA
+------------------------------------------------------------
+Vaste activa:              € {data.balance_sheet.fixed_assets:,.2f}
+Vlottende activa:          € {data.balance_sheet.current_assets:,.2f}
 
-Kosten
-Inkoopkosten: € {data.profit_and_loss.cost_of_sales:,.2f}
-Personeelskosten: € {data.profit_and_loss.personnel_costs:,.2f}
-Overige kosten: € {data.profit_and_loss.operating_expenses:,.2f}
-Financieel resultaat: € {data.profit_and_loss.financial_result:,.2f}
+PASSIVA
+------------------------------------------------------------
+Eigen vermogen:            € {data.balance_sheet.equity:,.2f}
 
-Netto resultaat: € {data.profit_and_loss.net_profit:,.2f}
+Langlopende schulden:      € {data.balance_sheet.long_term_liabilities:,.2f}
+Kortlopende schulden:      € {data.balance_sheet.short_term_liabilities:,.2f}
 
-3. BALANS PER 31-12-{data.fiscal_year}
+============================================================
+WINST- EN VERLIESREKENING
+============================================================
 
-Activa
-Vaste activa: € {data.balance_sheet.fixed_assets:,.2f}
-Vlottende activa: € {data.balance_sheet.current_assets:,.2f}
+Omzet:                     € {data.profit_and_loss.revenue:,.2f}
+Kostprijs omzet:           € {data.profit_and_loss.cost_of_sales:,.2f}
 
-Passiva
-Eigen vermogen: € {data.balance_sheet.equity:,.2f}
-Langlopende schulden: € {data.balance_sheet.long_term_liabilities:,.2f}
-Kortlopende schulden: € {data.balance_sheet.short_term_liabilities:,.2f}
+Operationele kosten:       € {data.profit_and_loss.operating_expenses:,.2f}
+Personeelskosten:          € {data.profit_and_loss.personnel_costs:,.2f}
+
+Financieel resultaat:      € {data.profit_and_loss.financial_result:,.2f}
+
+------------------------------------------------------------
+Nettoresultaat:            € {data.profit_and_loss.net_profit:,.2f}
+------------------------------------------------------------
+
+Document opgesteld voor interne rapportage en accountantscontrole.
     """
 
     return {"document_text": report_text.strip()}
 
 
 # =====================================================
-# ✅ PDF OUTPUT
+# ✅ PDF EXPORT ENDPOINT
 # =====================================================
 
 @app.post("/generate-annual-report-pdf")
@@ -132,15 +134,20 @@ def generate_report_pdf(data: AnnualReportRequest):
     pdf.set_font("Arial", size=11)
 
     for line in text.split("\n"):
-        pdf.multi_cell(0, 8, line)
+        pdf.cell(0, 7, line, ln=True)
 
     pdf.output(filename)
 
-    return FileResponse(filename, media_type="application/pdf", filename="jaarrekening.pdf")
+    return FileResponse(
+        filename,
+        media_type="application/pdf",
+        filename="jaarrekening.pdf"
+    )
 
 
 # =====================================================
-# ✅ UPLOAD BANK FILES (CSV/Excel/MT940 placeholder)
+# ✅ BANK FILE UPLOAD ENDPOINT
+# Supports: CSV / Excel / MT940 (optional)
 # =====================================================
 
 @app.post("/upload-bank-file")
@@ -149,23 +156,32 @@ async def upload_bank_file(file: UploadFile = File(...)):
     ext = file.filename.split(".")[-1].lower()
     temp_name = f"upload_{uuid.uuid4().hex}.{ext}"
 
-    with open(temp_name, "wb") as f:
-        f.write(await file.read())
+    with open(temp_name, "wb") as buffer:
+        buffer.write(await file.read())
 
-    if ext in ["csv"]:
+    # ✅ CSV
+    if ext == "csv":
         df = pd.read_csv(temp_name)
+
+    # ✅ Excel
     elif ext in ["xls", "xlsx"]:
         df = pd.read_excel(temp_name)
-    elif ext in ["mt940"]:
-        return {"status": "MT940 import komt in stap 2 ✅"}
+
+    # ✅ MT940 (optional basic placeholder)
+    elif ext == "mt940":
+        return {
+            "status": "MT940 support komt eraan ✅",
+            "note": "Niet elke bank gebruikt MT940, dus dit is optioneel."
+        }
+
     else:
-        return {"error": "Bestandstype niet ondersteund"}
+        return {"error": "Bestandstype niet ondersteund. Gebruik CSV, XLSX of MT940."}
 
     os.remove(temp_name)
 
     return {
-        "status": "Bankbestand ingelezen ✅",
-        "rows": len(df),
-        "columns": list(df.columns)
+        "status": "Bankbestand succesvol ingelezen ✅",
+        "rows_detected": len(df),
+        "columns": list(df.columns),
+        "preview": df.head(5).to_dict()
     }
-
