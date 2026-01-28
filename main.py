@@ -73,8 +73,12 @@ class AnnualReportRequest(BaseModel):
 # ✅ FORMAL YEAR REPORT (TEXT)
 # =====================================================
 
-@app.post("/generate-annual-report")
+@app.post(
+    "/generate-annual-report",
+    operation_id="generateAnnualReport"
+)
 def generate_report(data: AnnualReportRequest):
+
 
     report_text = f"""
 JAARREKENING {data.fiscal_year}
