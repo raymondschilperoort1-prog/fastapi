@@ -9,7 +9,7 @@ import os
 app = FastAPI(
     title="Strikte Boekhoud Partner API",
     version="1.0.0",
-    description="Genereert formele jaarstukken zoals accountant-output."
+    description="Genereert formele jaarstukken zoals accountant-output.deel 2"
 )
 
 # =====================================================
