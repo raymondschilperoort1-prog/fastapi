@@ -10,8 +10,8 @@ import io
 
 app = FastAPI(
     title="Strikte Boekhoud Partner API",
-    version="3.0.0",
-    description="Genereert formele jaarrekeningen (Accountant Style) + PDF + bank upload + CSV input."
+    version="4.0.0",
+    description="Accountant-grade jaarrekening PDF met tabellen + cover + inhoud + toelichting."
 )
 
 # =====================================================
@@ -20,20 +20,13 @@ app = FastAPI(
 
 @app.get("/")
 def home():
-    return {"status": "Accountant API draait ✅"}
+    return {"status": "Accountant API draait ✅ (v4.0)"}
+
 
 @app.get("/version")
 def version():
-    return {"version": "Accountant API v3.0 ✅ Accountant Style Live"}
+    return {"version": "Accountant API v4.0 ✅ PDF met tabellen"}
 
-@app.get("/privacy")
-def privacy():
-    return {
-        "policy": (
-            "Deze API verwerkt alleen boekhoudgegevens voor rapportage. "
-            "Er worden geen gegevens permanent opgeslagen."
-        )
-    }
 
 # =====================================================
 # ✅ DATA MODELS
@@ -64,273 +57,221 @@ class AnnualReportRequest(BaseModel):
 
 
 # =====================================================
-# ✅ ACCOUNTANT STYLE YEAR REPORT BUILDER v3.0
-# (Zoals officiële jaarrekening layout)
+# ✅ PDF BUILDER HELPERS (TABLE STYLE)
 # =====================================================
 
-def build_accountant_report(data: AnnualReportRequest):
+class AccountantPDF(FPDF):
 
-    principles = f"""
-GRONDSLAGEN VOOR WAARDERING EN RESULTAATBEPALING
+    def header(self):
+        self.set_font("Helvetica", "B", 10)
+        self.cell(0, 8, "Jaarrekening (Accountant Style)", align="R")
+        self.ln(12)
 
-Algemeen
-De jaarrekening is opgesteld overeenkomstig de Richtlijnen voor de Jaarverslaggeving
-voor microrechtspersonen.
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "", 9)
+        self.cell(0, 10, f"Pagina {self.page_no()}", align="C")
 
-Waardering activa en passiva
-Activa en passiva worden gewaardeerd tegen verkrijgingsprijs.
 
-Omzetverantwoording
-Opbrengsten worden verantwoord in het jaar waarin de prestaties zijn geleverd.
+def table_row(pdf, col1, col2):
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(110, 8, col1, border=0)
+    pdf.cell(60, 8, col2, border=0, ln=True, align="R")
 
-Afschrijvingen
-Materiële vaste activa worden lineair afgeschreven op basis van economische levensduur.
-"""
 
-    balance_notes = f"""
-TOELICHTING OP DE BALANS
-
-Eigen Vermogen
-Het eigen vermogen per balansdatum bedraagt € {data.balance_sheet.equity:,.2f}.
-
-Schulden
-Langlopende schulden: € {data.balance_sheet.long_term_liabilities:,.2f}
-Kortlopende schulden: € {data.balance_sheet.short_term_liabilities:,.2f}
-"""
-
-    other_notes = f"""
-OVERIGE TOELICHTINGEN
-
-Gemiddeld aantal werknemers
-Gedurende het boekjaar waren er geen werknemers in dienst.
-
-Gebeurtenissen na balansdatum
-Er hebben zich geen materiële gebeurtenissen voorgedaan na balansdatum.
-"""
-
-    signing = f"""
-ONDERTEKENING
-
-Opgemaakt te ___________________
-
-Datum: _______________________
-
-Directie: _____________________
-"""
-
-    return f"""
-============================================================
-                    JAARREKENING
-============================================================
-
-Onderneming: {data.company_name}
-Boekjaar:    {data.fiscal_year}
-
-============================================================
-1. SAMENSTELLINGSVERKLARING
-============================================================
-
-De jaarrekening van {data.company_name} is samengesteld op basis van
-de door de directie verstrekte gegevens.
-
-Er is geen accountantscontrole toegepast.
-
-============================================================
-2. BALANS PER 31-12-{data.fiscal_year}
-============================================================
-
-ACTIVA
-------------------------------------------------------------
-Vaste activa:              € {data.balance_sheet.fixed_assets:,.2f}
-Vlottende activa:          € {data.balance_sheet.current_assets:,.2f}
-
-Totaal activa:             € {(data.balance_sheet.fixed_assets + data.balance_sheet.current_assets):,.2f}
-
-PASSIVA
-------------------------------------------------------------
-Eigen vermogen:            € {data.balance_sheet.equity:,.2f}
-
-Langlopende schulden:      € {data.balance_sheet.long_term_liabilities:,.2f}
-Kortlopende schulden:      € {data.balance_sheet.short_term_liabilities:,.2f}
-
-Totaal passiva:            € {(data.balance_sheet.equity + data.balance_sheet.long_term_liabilities + data.balance_sheet.short_term_liabilities):,.2f}
-
-============================================================
-3. WINST- EN VERLIESREKENING
-============================================================
-
-Omzet:                     € {data.profit_and_loss.revenue:,.2f}
-Kostprijs omzet:           € {data.profit_and_loss.cost_of_sales:,.2f}
-
-Brutowinst:                € {(data.profit_and_loss.revenue - data.profit_and_loss.cost_of_sales):,.2f}
-
-Operationele kosten:       € {data.profit_and_loss.operating_expenses:,.2f}
-Personeelskosten:          € {data.profit_and_loss.personnel_costs:,.2f}
-
-Financieel resultaat:      € {data.profit_and_loss.financial_result:,.2f}
-
-------------------------------------------------------------
-Nettoresultaat:            € {data.profit_and_loss.net_profit:,.2f}
-------------------------------------------------------------
-
-============================================================
-4. GRONDSLAGEN
-============================================================
-{principles}
-
-============================================================
-5. TOELICHTING BALANSPOSTEN
-============================================================
-{balance_notes}
-
-============================================================
-6. OVERIGE GEGEVENS
-============================================================
-{other_notes}
-
-============================================================
-7. ONDERTEKENING
-============================================================
-{signing}
-"""
+def section_title(pdf, title):
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, title, ln=True)
+    pdf.set_draw_color(0)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
 
 
 # =====================================================
-# ✅ FORMAL YEAR REPORT ENDPOINT (TEXT)
-# =====================================================
-
-@app.post(
-    "/generate-annual-report",
-    operation_id="generateAnnualReport"
-)
-def generate_report(data: AnnualReportRequest):
-
-    report_text = build_accountant_report(data)
-
-    return {"document_text": report_text.strip()}
-
-
-# =====================================================
-# ✅ PDF EXPORT ENDPOINT v3.0 (ACCOUNTANT STYLE)
+# ✅ PDF GENERATOR v4.0 (EXACT ACCOUNTANT STYLE)
 # =====================================================
 
 @app.post("/generate-annual-report-pdf")
 def generate_report_pdf(data: AnnualReportRequest):
 
-    text = build_accountant_report(data)
-
     filename = f"/tmp/jaarrekening_{uuid.uuid4().hex}.pdf"
 
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf = AccountantPDF()
+    pdf.set_auto_page_break(auto=True, margin=20)
 
-    # ✅ Cover Page Title
+    # =====================================================
+    # ✅ COVER PAGE
+    # =====================================================
+
     pdf.add_page()
-    pdf.set_font("Helvetica", style="B", size=18)
-    pdf.cell(0, 15, "JAARREKENING", ln=True, align="C")
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 20, "JAARREKENING", ln=True, align="C")
 
-    pdf.ln(8)
-    pdf.set_font("Helvetica", size=12)
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "", 14)
     pdf.cell(0, 10, data.company_name, ln=True, align="C")
     pdf.cell(0, 10, f"Boekjaar {data.fiscal_year}", ln=True, align="C")
 
+    pdf.ln(30)
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.cell(0, 10, "Opgesteld conform RJ Microrechtspersonen", ln=True, align="C")
+
+    # =====================================================
+    # ✅ PAGE 2 — INHOUDSOPGAVE LOOK
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "INHOUDSOPGAVE")
+
+    table_row(pdf, "1. Samenstellingsverklaring", "Pagina 3")
+    table_row(pdf, "2. Balans", "Pagina 4")
+    table_row(pdf, "3. Winst- en verliesrekening", "Pagina 5")
+    table_row(pdf, "4. Grondslagen", "Pagina 6")
+    table_row(pdf, "5. Toelichting balansposten", "Pagina 7")
+    table_row(pdf, "6. Overige gegevens", "Pagina 8")
+    table_row(pdf, "7. Ondertekening", "Pagina 9")
+
+    # =====================================================
+    # ✅ PAGE 3 — SAMENSTELLINGSVERKLARING
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "1. SAMENSTELLINGSVERKLARING")
+
+    pdf.set_font("Helvetica", "", 11)
+    pdf.multi_cell(
+        0, 7,
+        f"De jaarrekening van {data.company_name} over boekjaar {data.fiscal_year} "
+        "is samengesteld op basis van de door de directie verstrekte gegevens.\n\n"
+        "Er is geen accountantscontrole toegepast.\n\n"
+        "Deze jaarrekening is bedoeld voor interne rapportage."
+    )
+
+    # =====================================================
+    # ✅ PAGE 4 — BALANS MET TABELLEN
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, f"2. BALANS PER 31-12-{data.fiscal_year}")
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "ACTIVA", ln=True)
+
+    table_row(pdf, "Vaste activa", f"€ {data.balance_sheet.fixed_assets:,.2f}")
+    table_row(pdf, "Vlottende activa", f"€ {data.balance_sheet.current_assets:,.2f}")
+
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(110, 8, "Totaal activa", border="T")
+    pdf.cell(
+        60, 8,
+        f"€ {(data.balance_sheet.fixed_assets + data.balance_sheet.current_assets):,.2f}",
+        border="T",
+        ln=True,
+        align="R"
+    )
+
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "PASSIVA", ln=True)
+
+    table_row(pdf, "Eigen vermogen", f"€ {data.balance_sheet.equity:,.2f}")
+    table_row(pdf, "Langlopende schulden", f"€ {data.balance_sheet.long_term_liabilities:,.2f}")
+    table_row(pdf, "Kortlopende schulden", f"€ {data.balance_sheet.short_term_liabilities:,.2f}")
+
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(110, 8, "Totaal passiva", border="T")
+    pdf.cell(
+        60, 8,
+        f"€ {(data.balance_sheet.equity + data.balance_sheet.long_term_liabilities + data.balance_sheet.short_term_liabilities):,.2f}",
+        border="T",
+        ln=True,
+        align="R"
+    )
+
+    # =====================================================
+    # ✅ PAGE 5 — WINST & VERLIES TABELLEN
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "3. WINST- EN VERLIESREKENING")
+
+    table_row(pdf, "Omzet", f"€ {data.profit_and_loss.revenue:,.2f}")
+    table_row(pdf, "Kostprijs omzet", f"€ {data.profit_and_loss.cost_of_sales:,.2f}")
+
+    brutowinst = data.profit_and_loss.revenue - data.profit_and_loss.cost_of_sales
+    pdf.set_font("Helvetica", "B", 10)
+    table_row(pdf, "Brutowinst", f"€ {brutowinst:,.2f}")
+
+    pdf.ln(4)
+    table_row(pdf, "Operationele kosten", f"€ {data.profit_and_loss.operating_expenses:,.2f}")
+    table_row(pdf, "Personeelskosten", f"€ {data.profit_and_loss.personnel_costs:,.2f}")
+    table_row(pdf, "Financieel resultaat", f"€ {data.profit_and_loss.financial_result:,.2f}")
+
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 11)
+    table_row(pdf, "Nettoresultaat", f"€ {data.profit_and_loss.net_profit:,.2f}")
+
+    # =====================================================
+    # ✅ PAGE 6 — GRONDSLAGEN
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "4. GRONDSLAGEN")
+
+    pdf.set_font("Helvetica", "", 11)
+    pdf.multi_cell(
+        0, 7,
+        "De jaarrekening is opgesteld overeenkomstig de Richtlijnen voor de Jaarverslaggeving "
+        "voor microrechtspersonen.\n\n"
+        "Activa en passiva worden gewaardeerd tegen verkrijgingsprijs.\n\n"
+        "Materiële vaste activa worden lineair afgeschreven."
+    )
+
+    # =====================================================
+    # ✅ PAGE 7 — TOELICHTING
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "5. TOELICHTING BALANSPOSTEN")
+
+    pdf.multi_cell(
+        0, 7,
+        f"Eigen vermogen per balansdatum bedraagt € {data.balance_sheet.equity:,.2f}.\n\n"
+        f"Langlopende schulden: € {data.balance_sheet.long_term_liabilities:,.2f}\n"
+        f"Kortlopende schulden: € {data.balance_sheet.short_term_liabilities:,.2f}"
+    )
+
+    # =====================================================
+    # ✅ PAGE 8 — OVERIGE
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "6. OVERIGE GEGEVENS")
+
+    pdf.multi_cell(
+        0, 7,
+        "Gedurende het boekjaar waren er geen werknemers in dienst.\n\n"
+        "Er hebben zich geen materiële gebeurtenissen voorgedaan na balansdatum."
+    )
+
+    # =====================================================
+    # ✅ PAGE 9 — SIGNATURE
+    # =====================================================
+
+    pdf.add_page()
+    section_title(pdf, "7. ONDERTEKENING")
+
     pdf.ln(15)
-    pdf.set_font("Helvetica", size=10)
+    pdf.cell(0, 10, "Opgemaakt te: ____________________", ln=True)
+    pdf.cell(0, 10, "Datum: _________________________", ln=True)
+    pdf.cell(0, 10, "Directie: _______________________", ln=True)
 
-    # ✅ Full report body
-    for line in text.split("\n"):
-        pdf.multi_cell(0, 7, line)
-
+    # ✅ Save PDF
     pdf.output(filename)
 
     return FileResponse(
         filename,
         media_type="application/pdf",
-        filename="jaarrekening_accountantstijl.pdf"
+        filename="jaarrekening_v4_accountant.pdf"
     )
-
-
-# =====================================================
-# ✅ BANK FILE UPLOAD ENDPOINT
-# Supports: CSV / Excel / MT940 (optional)
-# =====================================================
-
-@app.post("/upload-bank-file")
-async def upload_bank_file(file: UploadFile = File(...)):
-
-    ext = file.filename.split(".")[-1].lower()
-    temp_name = f"/tmp/upload_{uuid.uuid4().hex}.{ext}"
-
-    with open(temp_name, "wb") as buffer:
-        buffer.write(await file.read())
-
-    # ✅ CSV
-    if ext == "csv":
-        df = pd.read_csv(temp_name)
-
-    # ✅ Excel
-    elif ext in ["xls", "xlsx"]:
-        df = pd.read_excel(temp_name)
-
-    # ✅ MT940 optional
-    elif ext == "mt940":
-        return {
-            "status": "MT940 support komt eraan ✅",
-            "note": "Niet elke bank gebruikt MT940, dus dit is optioneel."
-        }
-
-    else:
-        return {"error": "Bestandstype niet ondersteund. Gebruik CSV, XLSX of MT940."}
-
-    os.remove(temp_name)
-
-    return {
-        "status": "Bankbestand succesvol ingelezen ✅",
-        "rows_detected": len(df),
-        "columns": list(df.columns),
-        "preview": df.head(5).to_dict()
-    }
-
-
-# =====================================================
-# ✅ CSV → DIRECT YEAR REPORT GENERATOR
-# =====================================================
-
-@app.post(
-    "/generate-from-csv",
-    operation_id="generateAnnualReportFromCSV"
-)
-async def generate_from_csv(file: UploadFile = File(...)):
-
-    contents = await file.read()
-    text_stream = io.StringIO(contents.decode("utf-8"))
-    reader = csv.DictReader(text_stream)
-
-    rows = list(reader)
-
-    if len(rows) == 0:
-        return {"error": "CSV bevat geen data"}
-
-    row = rows[0]
-
-    data = AnnualReportRequest(
-        company_name=row["company_name"],
-        fiscal_year=row["fiscal_year"],
-        balance_sheet=BalanceSheet(
-            fixed_assets=float(row["fixed_assets"]),
-            current_assets=float(row["current_assets"]),
-            equity=float(row["equity"]),
-            long_term_liabilities=float(row["long_term_liabilities"]),
-            short_term_liabilities=float(row["short_term_liabilities"]),
-        ),
-        profit_and_loss=ProfitLoss(
-            revenue=float(row["revenue"]),
-            cost_of_sales=float(row["cost_of_sales"]),
-            operating_expenses=float(row["operating_expenses"]),
-            personnel_costs=float(row["personnel_costs"]),
-            financial_result=float(row["financial_result"]),
-            net_profit=float(row["net_profit"]),
-        ),
-    )
-
-    return generate_report(data)
